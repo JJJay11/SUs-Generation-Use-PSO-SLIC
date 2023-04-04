@@ -1,3 +1,4 @@
+import scipy
 from sklearn.datasets import load_boston
 from sklearn.model_selection import cross_val_score
 from sklearn.ensemble import RandomForestRegressor
