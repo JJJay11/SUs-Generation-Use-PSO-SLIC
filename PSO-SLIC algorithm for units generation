@@ -312,10 +312,12 @@ class PSO():
 
     fit = run
 
-
+lb = eval(input('Lower bound of particle space:'))
+ub = eval(input('upper bound of particle space:'))
+pop = eval(input('number of particles:'))
 import torch
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-pso = PSO(func=demo_func, n_dim=2, pop=20, w=0.8, c1=0.5, c2=0.5, max_iter=20, lb=[5, 1], ub=[50, 50], verbose=True)
+pso = PSO(func=demo_func, n_dim=2, pop=pop, w=0.8, c1=0.5, c2=0.5, max_iter=20, lb=lb, ub=ub, verbose=True)
 pso.to(device=device)
 pso.run()
 print('best_x is', pso.best_x.astype(int), 'best_y is', pso.best_y)
