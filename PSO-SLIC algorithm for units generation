@@ -1,4 +1,3 @@
-import scipy
 from sklearn.datasets import load_boston
 from sklearn.model_selection import cross_val_score
 from sklearn.ensemble import RandomForestRegressor
@@ -13,77 +12,86 @@ from sko.tools import set_run_mode
 from tqdm import tqdm
 
 
+def distance(p, c):  # sqrt( (x1-x2)**2 + (y1-y2)**2 )
 
-def distance(p, c):
-    """
-    Computes the color distance between two pixels
-    """
     s = 0
     for i in range(len(p)):
         s += (p[i] - c[i]) ** 2
     return np.sqrt(s)
 
 
+def distance_color(p, c):  
+
+	s = 0
+	for i in range(len(p)):
+		if i == 1:
+			s += min(np.abs(p[i] - c[i]),1-np.abs(p[i] - c[i]))**2
+		else:
+			s += (p[i] - c[i])**2
+	return np.sqrt(s)
+
+
+
 def centroid(listPixel, dim):
-    """
-    Computes the centroid of the given points given as [r, g, b]
-    """
+
     center = np.zeros(dim)
     for pixel in listPixel:
         center = np.add(center, pixel / len(listPixel))
     return center
 
 
-def superpixel(image,k,m,maxIter=10):
-    """
-    Computes the SLIC algorithm on an image with k**2 superpixels
-    """
+def superpixel(image, k, m, maxIter = 20):    
 
+	si = image.shape[0]/k   
+	sj = image.shape[1]/k   
+	randis = [int((ki+0.5)*si) for ki in range(k) for j in range(k)]
+	randjs = [int((ki+0.5)*sj) for j in range(k) for ki in range(k)]
+	centroidsPosition = [np.array([i,j]) for i, j in zip(randis, randjs)]   
+	centroids = [image[i][j] for i,j in zip(randis, randjs)]   
 
-    si = image.shape[0] / k  
-    sj = image.shape[1] / k  
-    randis = [int((ki + 0.5) * si) for ki in range(k) for j in range(k)]
-    randjs = [int((ki + 0.5) * sj) for j in range(k) for ki in range(k)]
-    centroidsPosition = [np.array([i, j]) for i, j in zip(randis, randjs)]  
-    centroids = [image[i][j] for i, j in zip(randis, randjs)]  
+	sk = k*k   
+	norm = np.sqrt(image.shape[0]**2 + image.shape[1]**2)   
 
-    sk = k * k  
-    norm = np.sqrt(image.shape[0] ** 2 + image.shape[1] ** 2)  
-    res = np.zeros(image.shape)  
-    centroidMatrix = np.full((image.shape[0], image.shape[1]), -1, dtype=int)  
+	res = np.zeros(image.shape)   
+	centroidMatrix = np.full((image.shape[0], image.shape[1]), -1, dtype=int)   
 
-    for iteration in tqdm(range(maxIter)):  
-        assignements = {key: [] for key in range(sk)}
-        assignementsPositions = {key: [] for key in range(sk)}
-        distanceMatrix = np.full((image.shape[0], image.shape[1], 1), np.inf)  
+	for iteration in tqdm(range(maxIter)):  
+		
+		assignements = {key: [] for key in range(sk)}
+		assignementsPositions = {key: [] for key in range(sk)}
+		
+		distanceMatrix = np.full((image.shape[0], image.shape[1], 1), np.inf)   
 
-        for c, ci in zip(centroids, range(sk)):
-            for i in range(max(0, int(centroidsPosition[ci][0] - si)),
-                           min(image.shape[0], int(centroidsPosition[ci][0] + si))):  
-                for j in range(max(0, int(centroidsPosition[ci][1] - sj)),
-                               min(image.shape[1], int(centroidsPosition[ci][1] + sj))): 
-                    pixel = image[i][j]
-                    ccdist = distanceMatrix[i][j]
-                    m = m  
-                    cdist = distance(pixel, c) + m * distance([i, j], centroidsPosition[ci]) / norm  
-                    if cdist < ccdist:
-                        distanceMatrix[i][j] = cdist  
-                        centroidMatrix[i][j] = ci 
+		
+		for c, ci in zip(centroids, range(sk)):
+			for i in range(max(0, int(centroidsPosition[ci][0] - si)), min(image.shape[0], int(centroidsPosition[ci][0] + si))): 
+				for j in range(max(0, int(centroidsPosition[ci][1] - sj)), min(image.shape[1], int(centroidsPosition[ci][1] + sj))): 
+					pixel = image[i][j]
+					ccdist = distanceMatrix[i][j]
+					
+					m = m
+					cdist = distance_color(pixel, c) + m*distance([i,j], centroidsPosition[ci])/norm    
+					if cdist < ccdist:
+						distanceMatrix[i][j] = cdist  
+						centroidMatrix[i][j] = ci   
 
-        for i in range(image.shape[0]):  
-            for j in range(image.shape[1]):  
-                pixel = image[i][j]
-                closestCentroid = centroidMatrix[i][j]  
-                assignements[closestCentroid].append(pixel)  
-                assignementsPositions[closestCentroid].append(np.array([i, j]))  
-                res[i][j] = centroids[
-                                closestCentroid] * 255  
+		
+		for i in range(image.shape[0]):   
+			for j in range(image.shape[1]):   
+				pixel = image[i][j]
+				closestCentroid = centroidMatrix[i][j]   
+				
+				assignements[closestCentroid].append(pixel)   
+				assignementsPositions[closestCentroid].append(np.array([i,j]))   
+				res[i][j] = centroids[closestCentroid]*255  
 
-        for i in range(sk):
-            centroids[i] = centroid(assignements[i], image.shape[2])  
-            centroidsPosition[i] = centroid(assignementsPositions[i], 2)  
+		
+		for i in range(sk):
+			centroids[i] = centroid(assignements[i],image.shape[2])  
+			centroidsPosition[i] = centroid(assignementsPositions[i],2)   
 
-    return res
+		
+	return res
 
 
 from PIL import Image
@@ -99,7 +107,8 @@ img2 = np.array(img2)
 img2 = img2 / 360.0
 img2 = np.expand_dims(img2, axis=2)
 
-img3 = np.concatenate((img1, img2), axis=-1)
+img3 = np.concatenate((img1, img2), axis=-1)  
+
 
 
 
@@ -134,7 +143,7 @@ def Index_I(segmentation_result, source_image):
         pass
     for i in range(source_image.shape[0]):
         for j in range(source_image.shape[1]):
-            if segmentation_result[i, j] == 0: 
+            if segmentation_result[i, j] == 0:  
                 pass
             else:
                 key = segmentation_result[i, j]  
@@ -142,7 +151,7 @@ def Index_I(segmentation_result, source_image):
 
     neighbor_dict = {key: [] for key in set(segmentation_result.flatten())}
     try:
-        neighbor_dict.pop(0)
+        neighbor_dict.pop(0)  
     except:
         pass
     for i in range(source_image.shape[0]):
@@ -156,7 +165,7 @@ def Index_I(segmentation_result, source_image):
     for j in range(source_image.shape[1]):
         column = segmentation_result[:, j]
         for i in range(source_image.shape[0] - 1):
-            if column[i] == 0 or column[i + 1] == 0:
+            if column[i] == 0 or column[i + 1] == 0:  
                 pass
             elif column[i] != column[i + 1]:
                 neighbor_dict[column[i]].append(column[i + 1])
@@ -174,37 +183,70 @@ def Index_I(segmentation_result, source_image):
     return (N * P1) / (P2 * P3)
 
 
+
+def Index_S(segmentation_result, source_image):
+    dict_S = {key:[] for key in set(segmentation_result.flatten())}
+    try:
+        dict_S.pop(0)   
+    except:
+        pass
+    for i in range(source_image.shape[0]):
+        for j in range(source_image.shape[1]):
+            if segmentation_result[i,j]==0:   
+                pass
+            else:
+                key = segmentation_result[i,j]    
+                dict_S[key].append([i,j])    
+    Ss = []   
+    for key in dict_S.keys():
+        w1 = min(np.array(dict_S[key])[:,0])
+        w2 = max(np.array(dict_S[key])[:,0])
+        h1 = min(np.array(dict_S[key])[:,1])
+        h2 = max(np.array(dict_S[key])[:,1])
+        w = w2-w1+1
+        h = h2-h1+1
+        s = max(w/h,h/w)
+        if s<5:
+            Ss.append(s)
+    S1 = np.mean(Ss)
+    S2 = np.var(Ss)
+
+    return S1
+
+
 def demo_func(c):
     x1, x2 = c
-    res3 = superpixel(img3, k=x1, m=x2)
+    res3 = superpixel(img3, k=x1, m=x2) 
     segmentation_result = res3[:, :, 0]
     source_image = img2
     V = Index_V(segmentation_result, source_image)
     I = Index_I(segmentation_result, source_image)
-    return (V, I)
+    S = Index_S(segmentation_result, source_image)
+    return (V, I, S)
+
 
 
 from sko.tools import func_transformer
 
 
 class PSO():
-    def __init__(self, func, n_dim=None, pop=2, max_iter=2, lb=-1e5, ub=1e5, w=0.8, c1=0.5, c2=0.5,
+    def __init__(self, func, n_dim=None, pop=2, max_iter=2, lb=[5, 1], ub=[50, 50], w=0.8, c1=0.5, c2=0.5,
                  constraint_eq=tuple(), constraint_ueq=tuple(), verbose=False
                  , dim=None):
 
-        n_dim = n_dim or dim  
+        n_dim = n_dim or dim  # support the earlier version
+
         self.func = func_transformer(func)
         self.w = w  
         self.cp, self.cg = c1, c2  
         self.pop = pop  
         self.n_dim = n_dim  
         self.max_iter = max_iter  
-        self.verbose = verbose 
+        self.verbose = verbose  
 
         self.lb, self.ub = np.array(lb) * np.ones(self.n_dim), np.array(ub) * np.ones(self.n_dim)
         assert self.n_dim == len(self.lb) == len(self.ub), 'dim == len(lb) == len(ub) is not True'
         assert np.all(self.ub > self.lb), 'upper-bound must be greater than lower-bound'
-
 
         self.has_constraint = bool(constraint_ueq)
         self.constraint_ueq = constraint_ueq
@@ -215,17 +257,19 @@ class PSO():
         self.V = np.random.uniform(low=-v_high, high=v_high, size=(self.pop, self.n_dim))  
         self.Y = self.cal_y()  
         self.pbest_x = self.X.copy()  
-        self.pbest_y = np.array([[np.inf]] * pop)  
+        self.pbest_y = np.array([[np.inf]] * pop) 
         self.gbest_x = self.pbest_x.mean(axis=0).reshape(1, -1)  
         self.gbest_y = np.inf  
-        self.gbest_y_hist = []  
+        self.gbest_y_hist = [] 
         self.update_gbest()
 
+       
         self.record_mode = False
         self.record_value = {'X': [], 'V': [], 'Y': []}
         self.best_x, self.best_y = self.gbest_x, self.gbest_y  
 
     def check_constraint(self, x):
+        
         for constraint_func in self.constraint_ueq:
             if constraint_func(x) > 0:
                 return False
@@ -243,18 +287,17 @@ class PSO():
         self.X = np.clip(self.X, self.lb, self.ub).astype(np.int)
 
     def cal_y(self):
+        
         Y_ = self.func(self.X)
         Y_min = Y_.min(axis=0)
         Y_max = Y_.max(axis=0)
+        print('====', [Y_min, Y_max], '====')
         self.Y = (Y_ - Y_min) / (Y_max - Y_min)
         self.Y = self.Y.sum(axis=1).reshape(-1, 1)
         return self.Y
 
     def update_pbest(self):
-        '''
-        personal best
-        :return:
-        '''
+
         self.need_update = self.pbest_y > self.Y
         for idx, x in enumerate(self.X):
             if self.need_update[idx]:
@@ -264,10 +307,7 @@ class PSO():
         self.pbest_y = np.where(self.need_update, self.Y, self.pbest_y)
 
     def update_gbest(self):
-        '''
-        global best
-        :return:
-        '''
+
         idx_min = self.pbest_y.argmin()
         if self.gbest_y > self.pbest_y[idx_min]:
             self.gbest_x = self.X[idx_min, :].copy()
@@ -281,12 +321,7 @@ class PSO():
         self.record_value['Y'].append(self.Y)
 
     def run(self, max_iter=None, precision=None, N=20):
-        '''
-        precision: None or float
-            If precision is None, it will run the number of max_iter steps
-            If precision is a float, the loop will stop if continuous N difference between pbest less than precision
-        N: int
-        '''
+
         self.max_iter = max_iter or self.max_iter
         c = 0
         for iter_num in range(self.max_iter):
@@ -313,12 +348,11 @@ class PSO():
 
     fit = run
 
-lb = eval(input('Lower bound of particle space:'))
-ub = eval(input('upper bound of particle space:'))
-pop = eval(input('number of particles:'))
+
+
 import torch
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-pso = PSO(func=demo_func, n_dim=2, pop=pop, w=0.8, c1=0.5, c2=0.5, max_iter=20, lb=lb, ub=ub, verbose=True)
+pso = PSO(func=demo_func, n_dim=2, pop=50, max_iter=20, verbose=True)
 pso.to(device=device)
 pso.run()
 print('best_x is', pso.best_x.astype(int), 'best_y is', pso.best_y)
