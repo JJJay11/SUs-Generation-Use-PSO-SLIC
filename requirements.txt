@@ -1,0 +1,8 @@
+numpy==1.19.5
+tqdm==4.61.2
+torch==1.10.2+cu113
+torchaudio==0.10.2+cu113
+torchsummary==1.5.1
+torchvision==0.11.3+cu113
+scikit-optimize==0.9.0
+Pillow==8.4.0
